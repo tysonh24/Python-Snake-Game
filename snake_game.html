@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Snake Game</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            padding: 20px;
+        }
+
+        h1 {
+            font-size: 3rem;
+            margin: 20px 0;
+            color: #4ecca3;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        #gameCanvas {
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(78, 204, 163, 0.3);
+            background-color: #232741;
+            margin: 20px;
+            display: none;
+        }
+
+        #modeSelect {
+            background: rgba(35, 39, 65, 0.9);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            text-align: center;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        #modeSelect h2 {
+            margin-bottom: 25px;
+            font-size: 1.8rem;
+            color: #4ecca3;
+        }
+
+        .button {
+            padding: 12px 25px;
+            margin: 10px;
+            font-size: 1rem;
+            cursor: pointer;
+            background: #4ecca3;
+            color: #1a1a2e;
+            border: none;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            min-width: 200px;
+        }
+
+        .button:hover {
+            background: #45b393;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(78, 204, 163, 0.4);
+        }
+
+        .scores {
+            background: rgba(35, 39, 65, 0.9);
+            padding: 20px 40px;
+            border-radius: 10px;
+            text-align: center;
+            margin: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .current-score {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            color: #fff;
+        }
+
+        .high-score {
+            color: #4ecca3;
+            font-size: 1.2rem;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(35, 39, 65, 0.95);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            min-width: 300px;
+        }
+
+        .modal h2 {
+            color: #4ecca3;
+            margin-bottom: 20px;
+            font-size: 2rem;
+        }
+
+        .modal p {
+            margin: 15px 0;
+            font-size: 1.2rem;
+        }
+
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(5px);
+            z-index: 999;
+        }
+
+        #gameContainer {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .button {
+                min-width: 160px;
+                font-size: 0.9rem;
+            }
+            
+            #modeSelect {
+                padding: 20px;
+                width: 90%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Snake Game</h1>
+    
+    <div id="modeSelect">
+        <h2>Select Game Mode</h2>
+        <button class="button" onclick="setMode('normal')">Normal Mode</button>
+        <button class="button" onclick="setMode('expert')">Expert Mode</button>
+        <button class="button" onclick="setMode('jumbo')">Jumbo Mode</button>
+    </div>
+
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="400" height="400"></canvas>
+        <div class="scores">
+            <div id="score" class="current-score">Score: 0</div>
+            <div id="highScore" class="high-score">High Score: 0</div>
+        </div>
+    </div>
+
+    <div id="gameOverModal" class="modal">
+        <h2>Game Over!</h2>
+        <p id="finalScore">Score: 0</p>
+        <p id="finalHighScore" class="high-score">High Score: 0</p>
+        <button class="button" onclick="continueGame()">Continue in Same Mode</button>
+        <button class="button" onclick="switchMode()">Switch Mode</button>
+    </div>
+    <div id="overlay" class="overlay"></div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let gameMode = null;
+        let snake = [];
+        let food = {};
+        let direction = 'right';
+        let score = 0;
+        let gameLoop;
+        let lastDirection = 'right';  // Track the actual current direction
+        
+        const modes = {
+            normal: {
+                speed: 100,
+                size: 10,
+                speedIncrease: 0,
+                highScore: 0
+            },
+            expert: {
+                speed: 100,
+                size: 10,
+                speedIncrease: 25,
+                highScore: 0
+            },
+            jumbo: {
+                speed: 100,
+                size: 20,
+                speedIncrease: 0,
+                highScore: 0
+            }
+        };
+
+        // Load high scores from localStorage when the game starts
+        function loadHighScores() {
+            Object.keys(modes).forEach(mode => {
+                const savedScore = localStorage.getItem(`highScore_${mode}`);
+                if (savedScore !== null) {  // Check explicitly for null
+                    modes[mode].highScore = parseInt(savedScore);
+                } else {
+                    modes[mode].highScore = 0;  // Ensure we start with 0 if no saved score
+                    localStorage.setItem(`highScore_${mode}`, '0');
+                }
+            });
+        }
+
+        // Update high score
+        function updateHighScore() {
+            if (score > modes[gameMode].highScore) {
+                modes[gameMode].highScore = score;
+                localStorage.setItem(`highScore_${gameMode}`, score.toString());
+            }
+            // Show current mode's high score
+            document.getElementById('highScore').textContent = 
+                `${gameMode.charAt(0).toUpperCase() + gameMode.slice(1)} Mode High Score: ${modes[gameMode].highScore}`;
+        }
+
+        function setMode(mode) {
+            gameMode = mode;
+            document.getElementById('modeSelect').style.display = 'none';
+            document.getElementById('gameContainer').style.display = 'block';
+            document.getElementById('gameCanvas').style.display = 'block';
+            updateHighScore(); // Show high score for selected mode
+            resetGame();
+        }
+
+        function resetGame() {
+            // Clear any existing game loop
+            if (gameLoop) clearInterval(gameLoop);
+            
+            // Reset speed for expert mode
+            if (gameMode === 'expert') {
+                modes[gameMode].speed = 100;
+            }
+            
+            // Reset snake and direction
+            const size = modes[gameMode].size;
+            snake = [{x: 200, y: 200}];
+            direction = 'right';
+            lastDirection = 'right';  // Reset lastDirection too
+            score = 0;
+            updateScore();
+            
+            // Place initial food
+            placeFood();
+            
+            // Start game loop with appropriate speed
+            gameLoop = setInterval(gameStep, modes[gameMode].speed);
+        }
+
+        function gameStep() {
+            if (!gameLoop) return; // Stop movement if game is over
+            
+            const size = modes[gameMode].size;
+            
+            // Move snake
+            const head = {x: snake[0].x, y: snake[0].y};
+            switch(direction) {
+                case 'up': head.y -= size; break;
+                case 'down': head.y += size; break;
+                case 'left': head.x -= size; break;
+                case 'right': head.x += size; break;
+            }
+            
+            // Check collisions
+            if (head.x < 0 || head.x >= canvas.width || 
+                head.y < 0 || head.y >= canvas.height ||
+                snake.some(segment => segment.x === head.x && segment.y === head.y)) {
+                clearInterval(gameLoop);  // Stop the game loop
+                gameLoop = null;  // Clear the reference
+                draw();  // One final draw to show the collision
+                showGameOver();
+                return;
+            }
+            
+            snake.unshift(head);
+            
+            // Check if food is eaten
+            if (head.x === food.x && head.y === food.y) {
+                score++;
+                updateScore();
+                placeFood();
+                
+                // Increase speed if in expert mode
+                if (gameMode === 'expert') {
+                    clearInterval(gameLoop);
+                    const currentSpeed = modes[gameMode].speed;
+                    modes[gameMode].speed = Math.max(30, currentSpeed - modes[gameMode].speedIncrease);
+                    gameLoop = setInterval(gameStep, modes[gameMode].speed);
+                }
+            } else {
+                snake.pop();
+            }
+            
+            draw();
+        }
+
+        function placeFood() {
+            const size = modes[gameMode].size;
+            do {
+                food = {
+                    x: Math.floor(Math.random() * (canvas.width / size)) * size,
+                    y: Math.floor(Math.random() * (canvas.height / size)) * size
+                };
+            } while (snake.some(segment => segment.x === food.x && segment.y === food.y));
+        }
+
+        function draw() {
+            const size = modes[gameMode].size;
+            
+            // Clear canvas
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw snake
+            ctx.fillStyle = 'green';
+            snake.forEach(segment => {
+                ctx.fillRect(segment.x, segment.y, size, size);
+            });
+            
+            // Draw food
+            ctx.fillStyle = 'red';
+            ctx.fillRect(food.x, food.y, size, size);
+        }
+
+        function updateScore() {
+            document.getElementById('score').textContent = 'Score: ' + score;
+            updateHighScore();
+        }
+
+        // Modify keyboard controls to prevent backwards movement
+        document.addEventListener('keydown', (event) => {
+            if (!gameMode || !gameLoop) return; // Ignore keyboard input if game hasn't started or is over
+            
+            switch(event.key) {
+                case 'ArrowUp':
+                    if (lastDirection !== 'down') {
+                        direction = 'up';
+                        lastDirection = 'up';
+                    }
+                    break;
+                case 'ArrowDown':
+                    if (lastDirection !== 'up') {
+                        direction = 'down';
+                        lastDirection = 'down';
+                    }
+                    break;
+                case 'ArrowLeft':
+                    if (lastDirection !== 'right') {
+                        direction = 'left';
+                        lastDirection = 'left';
+                    }
+                    break;
+                case 'ArrowRight':
+                    if (lastDirection !== 'left') {
+                        direction = 'right';
+                        lastDirection = 'right';
+                    }
+                    break;
+            }
+        });
+
+        function showGameOver() {
+            document.getElementById('finalScore').textContent = 'Score: ' + score;
+            document.getElementById('finalHighScore').textContent = 
+                `${gameMode.charAt(0).toUpperCase() + gameMode.slice(1)} Mode High Score: ${modes[gameMode].highScore}`;
+            document.getElementById('gameOverModal').style.display = 'block';
+            document.getElementById('overlay').style.display = 'block';
+        }
+
+        function continueGame() {
+            document.getElementById('gameOverModal').style.display = 'none';
+            document.getElementById('overlay').style.display = 'none';
+            resetGame();
+        }
+
+        function switchMode() {
+            document.getElementById('gameOverModal').style.display = 'none';
+            document.getElementById('overlay').style.display = 'none';
+            document.getElementById('gameContainer').style.display = 'none';
+            document.getElementById('modeSelect').style.display = 'block';
+            if (gameLoop) clearInterval(gameLoop);
+        }
+
+        // Clear all high scores (optional - you can add a button for this if needed)
+        function clearHighScores() {
+            Object.keys(modes).forEach(mode => {
+                modes[mode].highScore = 0;
+                localStorage.setItem(`highScore_${mode}`, '0');
+            });
+            updateHighScore();
+        }
+
+        // Make sure to load high scores when the page loads
+        loadHighScores();
+    </script>
+</body>
+</html>
